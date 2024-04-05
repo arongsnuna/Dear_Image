@@ -16,7 +16,7 @@ from transformers import (ViltProcessor, ViltForQuestionAnswering,
 from diffusers import StableDiffusionInpaintPipeline
 
 from .nms import nms
-from vis_utils import html_embed_image, html_colored_span, vis_masks
+from vis_utils import html_embed_image, html_colored_span, vis_masks, image_saver
 
 
 def parse_step(step_str, partial=False):
@@ -287,14 +287,15 @@ class LocInterpreter():
         return img1
 
     def html(self,img,box_img,output_var,obj_name):
+        image_saver(box_img, obj_name)
         step_name=html_step_name(self.step_name)
         obj_arg=html_arg_name('object')
         img_arg=html_arg_name('image')
         output_var=html_var_name(output_var)
         img=html_embed_image(img)
         box_img=html_embed_image(box_img,300)
-        return f"<div>{output_var}={step_name}({img_arg}={img}, {obj_arg}='{obj_name}')={box_img}</div>"
-
+        #return f"<div>{output_var}={step_name}({img_arg}={img}, {obj_arg}='{obj_name}')={box_img}</div>"
+        return f"<div>{obj_arg}='{obj_name}' : {box_img}</div>"
 
     def execute(self,prog_step,inspect=False):
         img_var,obj_name,output_var = self.parse(prog_step)
@@ -1365,7 +1366,7 @@ def register_step_interpreters(dataset='nlvr'):
             SELECT=SelectInterpreter(),
             COLORPOP=ColorpopInterpreter(),
             BGBLUR=BgBlurInterpreter(),
-            REPLACE=ReplaceInterpreter(),
+            #REPLACE=ReplaceInterpreter(),
             EMOJI=EmojiInterpreter(),
             RESULT=ResultInterpreter()
         )
