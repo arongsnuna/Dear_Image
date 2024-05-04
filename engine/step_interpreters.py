@@ -631,11 +631,12 @@ class SegmentInterpreter():
         return objs
 
     def html(self,img_var,output_var,output):
+        image_saver(output, output_var)
         step_name = html_step_name(self.step_name)
         output_var = html_var_name(output_var)
         img_var = html_var_name(img_var)
         img_arg = html_arg_name('image')
-        output = html_embed_image(output,300)
+        output = html_embed_image(output,500)
         return f"""<div>{output_var}={step_name}({img_arg}={img_var})={output}</div>"""
 
     def execute(self, prog_step, inspect=False):
@@ -819,13 +820,15 @@ class BgBlurInterpreter():
         step_name = parse_result['step_name']
         img_var = parse_result['args']['image']
         obj_var = parse_result['args']['object']
+        background = eval(parse_result['args']['background'])
         output_var = parse_result['output_var']
         assert(step_name==self.step_name)
-        return img_var,obj_var,output_var
+        return img_var,obj_var,output_var,background
 
+    #마스크 생성
     def refine_mask(self,img,mask):
-        bgdModel = np.zeros((1,65),np.float64)
-        fgdModel = np.zeros((1,65),np.float64)
+        bgdModel = np.zeros((1,65),np.float64) #배경
+        fgdModel = np.zeros((1,65),np.float64) #전경(객체)
         mask,_,_ = cv2.grabCut(
             img.astype(np.uint8),
             mask.astype(np.uint8),
@@ -836,45 +839,64 @@ class BgBlurInterpreter():
             cv2.GC_INIT_WITH_MASK)
         return mask.astype(float)
 
+    #마스크 경계 자연스럽게
     def smoothen_mask(self,mask):
         mask = Image.fromarray(255*mask.astype(np.uint8)).filter(
-            ImageFilter.GaussianBlur(radius = 5))
+            ImageFilter.GaussianBlur(radius = 20))
         return np.array(mask).astype(float)/255
 
-    def html(self,img_var,obj_var,output_var,output):
+    def html(self,img_var,obj_var,output_var,output,background):
         step_name = html_step_name(self.step_name)
         img_var = html_var_name(img_var)
         obj_var = html_var_name(obj_var)
         output_var = html_var_name(output_var)
+        is_background = html_var_name('background')
         img_arg = html_arg_name('image')
         obj_arg = html_arg_name('object')
         output = html_embed_image(output,300)
-        return f"""{output_var}={step_name}({img_arg}={img_var},{obj_arg}={obj_var})={output}"""
-
+        return f"""{output_var}={step_name}({img_arg}={img_var},{obj_arg}={obj_var},{is_background}={background})={output}"""    
+                
     def execute(self,prog_step,inspect=False):
-        img_var,obj_var,output_var = self.parse(prog_step)
+        img_var,obj_var,output_var,background = self.parse(prog_step)
         img = prog_step.state[img_var]
         objs = prog_step.state[obj_var]
         bgimg = img.copy()
-        bgimg = bgimg.filter(ImageFilter.GaussianBlur(radius = 2))
-        bgimg = np.array(bgimg).astype(float)
+        bgimg = bgimg.filter(ImageFilter.GaussianBlur(radius = 10)) #이미지 전체 블러처리
+        
+        blurimg = img.copy()
+        blurimg = blurimg.filter(ImageFilter.GaussianBlur(radius = 10)) #이미지 전체 블러처리
+        
+        bgimg = np.array(bgimg).astype(float) 
         img = np.array(img).astype(float)
-        for obj in objs:
+        blurimg = np.array(blurimg).astype(float)
+        
+        i = 0
+        for obj in objs: #객체가 있으면
+            #객체를 기준으로 마스크 생성 > 객체 분리
             refined_mask = self.refine_mask(img, obj['mask'])
-            mask = np.tile(refined_mask[:,:,np.newaxis],(1,1,3))
-            mask = self.smoothen_mask(mask)
-            bgimg = mask*img + (1-mask)*bgimg
+            #전경, 배경 결합해 마스크 생성
+            mask = np.tile(refined_mask[:,:,np.newaxis],(1,1,3)) 
+            mask = self.smoothen_mask(mask) #마스크 자연스럽게
+            
+            if background == 'True':
+                bgimg = mask * img + (1 - mask) * bgimg
+                
+            elif background == 'False':
+                if i==0 :
+                    bgimg = mask * blurimg + (1-mask) * img
+                else :
+                    bgimg = mask * blurimg + (1-mask) * bgimg
+            i+=1
+    
 
         bgimg = np.array(bgimg).astype(np.uint8)
         bgimg = Image.fromarray(bgimg)
         prog_step.state[output_var] = bgimg
         if inspect:
-            html_str = self.html(img_var, obj_var, output_var, bgimg)
+            html_str = self.html(img_var, obj_var, output_var, bgimg, background)
             return bgimg, html_str
 
         return bgimg
-
-
 class FaceDetInterpreter():
     step_name = 'FACEDET'
 
@@ -1042,7 +1064,8 @@ List:"""
 
     def get_list(self,text,list_max):
         response = openai.Completion.create(
-            model="text-davinci-002",
+            # model="text-davinci-002",
+            model="gpt-3.5-turbo-instruct",
             prompt=self.prompt_template.format(list_max=list_max,text=text),
             temperature=0.7,
             max_tokens=256,

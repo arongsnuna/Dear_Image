@@ -7,10 +7,10 @@ import math
 #이미지 저장
 def image_saver(img,img_name):
     #testserver에서 실행 시
-    result_path = 'result/' + img_name + '.jpg'
+    # result_path = 'result/' + img_name + '.jpg'
     
     #notebook 파일에서 실행 시
-    #result_path = '../result/' + img_name + '.jpg'
+    result_path = '../result/' + img_name + '.jpg'
     img.save(result_path)
     
 def image_formatter(img_path,size=224,vertical_align='middle'):
