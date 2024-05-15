@@ -1357,6 +1357,64 @@ class ReplaceInterpreter():
         return new_img
 
 
+class RemovebgInterpreter():
+    step_name = 'REMOVEBG'
+
+    def __init__(self):
+        print(f'Registering {self.step_name} step')
+
+    def parse(self,prog_step):
+        parse_result = parse_step(prog_step.prog_str)
+        step_name = parse_result['step_name']
+        img_var = parse_result['args']['image']
+        obj_var = parse_result['args']['object']
+        output_var = parse_result['output_var']
+        assert(step_name==self.step_name)
+        return img_var,obj_var,output_var
+    
+    def html(self,img_var,obj_var,output_var,output):
+        step_name = html_step_name(self.step_name)
+        img_var = html_var_name(img_var)
+        obj_var = html_var_name(obj_var)
+        output_var = html_var_name(output_var)
+        img_arg = html_arg_name('image')
+        obj_arg = html_arg_name('object')
+        output = html_embed_image(output,300)
+        return f"""{output_var}={step_name}({img_arg}={img_var},{obj_arg}={obj_var})={output}"""    
+    
+    def remove(self, img):
+        tmp = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        _, alpha = cv2.threshold(tmp, 0, 255, cv2.THRESH_BINARY)
+        b, g, r = cv2.split(img)
+        rgba = [b, g, r, alpha] #알파값을 추가해서 투명도 나타냄
+        dst = cv2.merge(rgba, 4)
+        result_img = Image.fromarray(dst)
+        return result_img
+        
+    def execute(self,prog_step,inspect=False):
+        img_var,obj_var,output_var = self.parse(prog_step)
+        img = prog_step.state[img_var]
+        objs = prog_step.state[obj_var]
+        
+        img = np.array(img).astype(float)
+        black_img = np.zeros_like(img, dtype=float) #img와 크기가 같은 검정색 이미지
+        
+        for obj in objs:
+            mask = obj['mask']
+            mask = np.tile(mask[:,:,np.newaxis],(1,1,3))
+            black_img = mask * img + (1-mask) * black_img #객체는 그대로, 배경은 검정색으로 for문 돌면서 누적
+            
+        result_img = np.array(black_img).astype(np.uint8)
+        result_img = self.remove(result_img) 
+        
+        prog_step.state[output_var] = result_img
+        
+        if inspect:
+            html_str = self.html(img_var, obj_var, output_var, result_img)
+            return result_img, html_str
+        
+        return result_img
+    
 def register_step_interpreters(dataset='nlvr'):
     if dataset=='nlvr':
         return dict(
