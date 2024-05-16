@@ -29,7 +29,7 @@ class ProgramInterpreter:
         else:
             assert(isinstance(prog,Program))
 
-        prog_steps = [Program(instruction,init_state=prog.state) \
+        prog_steps = [Program(instruction,init_state=prog.state)
             for instruction in prog.instructions]
 
         html_str = '<hr>'

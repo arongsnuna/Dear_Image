@@ -1449,7 +1449,8 @@ def register_step_interpreters(dataset='nlvr'):
             BGBLUR=BgBlurInterpreter(),
             #REPLACE=ReplaceInterpreter(),
             EMOJI=EmojiInterpreter(),
-            RESULT=ResultInterpreter()
+            RESULT=ResultInterpreter(),
+            REMOVEBG=RemovebgInterpreter()
         )
     elif dataset=='okDet':
         return dict(

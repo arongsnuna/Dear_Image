@@ -10,14 +10,14 @@ def image_saver(img,img_name):
     # result_path = 'result/' + img_name + '.jpg'
     
     #notebook 파일에서 실행 시
-    result_path = '../result/' + img_name + '.jpg'
+    result_path = '../result/' + img_name + '.png'
     img.save(result_path)
     
 def image_formatter(img_path,size=224,vertical_align='middle'):
     img = Image.open(img_path)
     img.thumbnail((size,size), Image.ANTIALIAS)
     with BytesIO() as buffer:
-        img.save(buffer, 'jpeg')
+        img.save(buffer, 'png') #투명도 추가 위해 png로 변경
         base64_img = base64.b64encode(buffer.getvalue()).decode()
     return f'<img style="vertical-align:{vertical_align}" src="data:image/jpeg;base64,{base64_img}">'
 
@@ -26,7 +26,7 @@ def html_embed_image(img,size=100):
     img =  img.copy()
     img.thumbnail((size,size), Image.ANTIALIAS)
     with BytesIO() as buffer:
-        img.save(buffer, 'jpeg')
+        img.save(buffer, 'png') #투명도 추가 위해 png로 변경
         base64_img = base64.b64encode(buffer.getvalue()).decode()
     return f'<img style="vertical-align:middle" src="data:image/jpeg;base64,{base64_img}">'
 
