@@ -1,37 +1,105 @@
 from flask import Flask, request, render_template, redirect, url_for, send_file
-#from gqa_module import *
 import os
 import sys
+from db_connection import connect_to_database
+import uuid
+from flask import Flask, request, redirect, url_for
+import os
+import boto3
+import uploads_utils
+from werkzeug.utils import secure_filename
+import uuid
+
 module_path = os.path.abspath(os.path.join('..'))
-if module_path not in sys.path:
-    sys.path.append(module_path)
-#%env OPENAI_API_KEY=
-from PIL import Image
-from IPython.core.display import HTML
-from functools import partial
-from engine.utils import ProgramGenerator, ProgramInterpreter
-from prompts.gqa import create_prompt
-#import googletrans
-
-#translator = googletrans.Translator()
-
-app = Flask(__name__)
-interpreter = ProgramInterpreter(dataset='gqa')
-prompter = partial(create_prompt,method='all')
-generator = ProgramGenerator(prompter=prompter)
-
-# 전역 변수를 사용하여 입력값을 저장할 딕셔너리 선언
 inputs = {}
 
-@app.route('/')
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
+app = Flask(__name__)
+
+
+@app.route('/', methods=['GET'])
 def index():
     return f'''<!doctype html>
     <html>
         <body>
+            초기화면
+        </body>
+    </html>
+    '''
+
+@app.route('/start') #입력 받은 값 전송
+def start():
+    # if(session_id is not None):
+    #     delete_query = "DELETE FROM sessions WHERE session_id = %s"
+    #     cursor.execute(delete_query, (session_id,))
+    #     conn.commit()
+    #     session_id = None
+    conn = connect_to_database()
+    cursor = conn.cursor(buffered=True)
+    session_id = str(uuid.uuid4())
+    insert_query = "INSERT INTO session (session_id) VALUES (%s)"
+    cursor.execute(insert_query, (session_id,))
+    conn.commit()
+
+    return f'''<!doctype html>
+    <html>
+        <body>
+            시작화면
+        </body>
+    </html>
+    '''
+@app.route('/imgupload')
+def imgupload():
+    return f'''<!doctype html>
+    <html>
+        <body>
+            <form action="http://localhost:5000/command_image"
+                method="POST"
+                enctype="multipart/form-data">
+                <input type="file" name="file" />
+                <input type="submit" />
+            </form>
+        </body>
+    </html>
+    '''
+
+@app.route('/command_image', methods=['POST'])
+def imgUploader():
+    session_id =  str(uuid.uuid4())
+
+    s3 = uploads_utils.s3Connection()
+    bucket = 'dear-image-flask'
+    file = request.files['file']
+
+    if file.filename == '':
+        return 'No selected file'
+
+    if uploads_utils.allowedFile(file.filename):
+        filename = secure_filename(file.filename)
+
+        s3_filepath = f'{session_id}/{filename}'
+        s3.upload_fileobj(file, bucket, s3_filepath)
+
+    # 리다이렉션 어디로 해야할지..
+    return f'''<!doctype html>
+    <html>
+        <body>
+            <h1><a href="/">File uploaded successfully</a></h1>
+        </body>
+    </html>
+    '''
+
+@app.route('/command')
+def command():
+    return f'''<!doctype html>
+    <html>
+        <body>
             <form action="/nextpage" method="post">
-                <label for="name">찾을 대상을 입력해주세요:</label><br>
-                <input type="text" id="name" name="name"><br><br>
-                <input type="submit" value="찾기">
+                <label for="command_contents">명령을 입력해주세요</label><br>
+                <input type="text" id="command_contents" name="command_contents"><br><br>
+                <input type="submit" value="입력">
             </form>
         </body>
     </html>
@@ -39,50 +107,18 @@ def index():
 
 @app.route('/nextpage', methods=['POST']) #입력 받은 값 전송
 def nextpage():
-    name = request.form['name']
-    inputs['name'] = name
-    return redirect(url_for('find_object'))
+    command_contents = request.form['command_contents']
+    conn = connect_to_database()
+    cursor = conn.cursor(buffered=True)
+    session_id = str(uuid.uuid4())
+    insert_command_query = "INSERT INTO commands (session_id, command_contents) VALUES (%s, %s)"
+    cursor.execute(insert_command_query, (session_id, command_contents))
+    conn.commit()
 
-@app.route('/find_object')
-def find_object():
-    # 저장된 입력값을 가져와서 출력
-    url = 'assets/camel1.png'
-    name = inputs.get('name', None)
-    chat = 'find'+name
-    result = exe_gqa(url, chat, interpreter, prompter, generator)
-    en_name = translator.translate(name, dest='en')
-    result_path = 'result/'+en_name.text+'.jpg' #결과 이미지 경로
-
-    if os.path.exists(result_path): #result 폴더에 파일이 존재할 경우
-        return f'''<!doctype html>
-    <html>
-        <body>
-            <h1><a href="/">visprog</a></h1>
-            <h2>찾은 대상: {name}</h2>
-            <hr><img src='/get_image?url={result_path}'></hr>
-        </body>
-    </html>
-    '''
-    else:
-        return f'''<!doctype html>
-    <html>
-        <body>
-            <h1><a href="/">visprog</a></h1>
-            <h2>대상을 찾을 수 없습니다.</h2>
-        </body>
-    </html>
-    '''
-    
-@app.route('/get_image')
-def get_image():
-    # URL로 전달된 파일 경로 가져오기
-    url = request.args.get('url')
-    
-    # 파일 경로로부터 이미지 파일 읽어오기
-    img_path = os.path.join(app.root_path, url)
-    
-    # 이미지 파일을 클라이언트에게 전송
-    return send_file(img_path)
+    inputs['command_contents'] = command_contents
+    return redirect(url_for('command_image'))
 
 
 app.run()
+if __name__ == '__main__':
+    app.run(debug=True)
