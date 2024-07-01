@@ -23,7 +23,7 @@ import uuid
 import uploads_utils
 from werkzeug.utils import secure_filename
 
-OPENAI_API_KEY = os.getenv('api_key')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
 
@@ -74,12 +74,12 @@ def imgupload():
     global session_id
     session_id = str(uuid.uuid4())
     sql = 'INSERT INTO Session (session_id) VALUES (%s)'
-    val = (session_id)
-    cursor.execute(sql, val)
+    cursor.execute(sql, (session_id,))
     conn.commit()
     return f'''<!doctype html>
     <html>
         <body>
+            <h1><a href="/">visprog </a></h1>
             <form action="http://localhost:5000/command_image"
                 method="POST"
                 enctype="multipart/form-data">
@@ -111,7 +111,7 @@ def imgUploader():
         s3.upload_fileobj(file, bucket, s3_filepath)
 
     location = s3.get_bucket_location(Bucket=bucket)["LocationConstraint"]
-    url = f"https://{bucket}.s3.{location}.amazonaws.com/{filename}"
+    url = f"https://{bucket}.s3.{location}.amazonaws.com/{s3_filepath}"
     sql = 'INSERT INTO OriginalImage (filepath, session_id) VALUES (%s, %s)'
     val = (url, session_id)
     cursor.execute(sql, val)
@@ -134,13 +134,12 @@ def imageEdit():
     command_contents = request.form['command_contents'] #명령 가져오기 및 저장
     en_command = translator.translate(command_contents, dest='en')
     sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
-    val1 = (session_id)
+    val1 = (session_id,)
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
-
     result = exe_imageEdit(image_path, en_command.text, interpreter, generator)
 
-    result_path = './result'
+    result_path = 'final.jpg'
 
     result.save(result_path)
 
@@ -150,7 +149,7 @@ def imageEdit():
             <h1><a href="/">visprog</a></h1>
             <div> instruction : {command_contents}<div>
             <div> instruction : {en_command.text}<div>
-            <hr>원본 : <img src='/get_image?url={origin}' width='200' height='200'></hr>
+            <hr>원본 : <img src='{image_path}' width='200' height='200'></hr>
             <hr>수정 : <img src='/get_image?url={result_path}' width='200' height='200'></hr>
         </body>
     </html>
@@ -159,14 +158,10 @@ def imageEdit():
 @app.route('/get_image')
 def get_image():
     # URL로 전달된 파일 경로 가져오기
-    sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
-    val1 = (session_id)
-    cursor.execute(sql1, val1)
-    image_path = cursor.fetchone()[0]
-    url = request.args.get(image_path)
+    url = request.args.get('url')
 
     # 파일 경로로부터 이미지 파일 읽어오기
-    img_path = os.path.join(app.root_path, url)
+    img_path = os.path.join(app.root_path, url.lstrip('/'))
 
     # 이미지 파일을 클라이언트에게 전송
     return send_file(img_path)
