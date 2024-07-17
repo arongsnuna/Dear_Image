@@ -12,7 +12,6 @@ from IPython.core.display import HTML
 from functools import partial
 from engine.utils import ProgramGenerator, ProgramInterpreter
 from prompts.gqa import create_prompt
-from prompts.imgeEdit import PROMPT
 import googletrans
 from dotenv import load_dotenv
 load_dotenv()
@@ -27,14 +26,16 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
 
-interpreter = ProgramInterpreter(dataset='imageEdit')
+interpreter = ProgramInterpreter(dataset='gqa')
+prompter = partial(create_prompt,method='all')
+generator = ProgramGenerator(prompter=prompter)
 
 session_id = 0
 conn = connect_to_database()
 cursor = conn.cursor(buffered=True)
 
-def create_prompt(instruction):
-    return PROMPT.format(instruction=instruction)
+# def create_prompt(instruction):
+#     return PROMPT.format(instruction=instruction)
 
 generator = ProgramGenerator(prompter=create_prompt)
 inputs = {}
@@ -80,7 +81,7 @@ def imgupload():
     <html>
         <body>
             <h1><a href="/">visprog </a></h1>
-            <form action="http://localhost:5000/command_image"
+            <form action="http://127.0.0.1:5000/command_image"
                 method="POST"
                 enctype="multipart/form-data">
                 <input type="file" name="file" />
@@ -137,9 +138,23 @@ def imageEdit():
     val1 = (session_id,)
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
-    result = exe_imageEdit(image_path, en_command.text, interpreter, generator)
+    result, html_str = exe_gqa(image_path, en_command.text, interpreter, generator)
 
     result_path = 'final.jpg'
+    print(result, HTML(html_str))
+
+    return f'''<!doctype html>
+    <html>
+        <body>
+            <h1><a href="/">visprog</a></h1>
+            <ol>
+                {result}
+                {HTML(html_str)}
+                {html_str}
+            </ol>
+        </body>
+    </html>
+    '''
 
     result.save(result_path)
 

@@ -9,8 +9,14 @@ from PIL import Image
 import requests
 from io import BytesIO
 
-def exe_gqa(imageURL, chat, interpreter, prompter, generator):
-    image = Image.open(imageURL)
+def exe_gqa(imageURL, chat, interpreter, generator):
+    # URL에서 이미지 다운로드
+    response = requests.get(imageURL)
+    image_data = response.content
+
+    # 이미지 데이터를 PIL Image로 열기
+    image = Image.open(BytesIO(image_data))
+
     image.thumbnail((640,640),Image.Resampling.LANCZOS)
     init_state = dict(
     IMAGE=image.convert('RGB')
@@ -19,7 +25,7 @@ def exe_gqa(imageURL, chat, interpreter, prompter, generator):
     question = chat
     prog,_ = generator.generate(dict(question=question))
     result, prog_state, html_str = interpreter.execute(prog,init_state,inspect=True)
-    return html_str
+    return result, html_str
 
 def exe_imageEdit(imageURL, chat, interpreter, generator):
     # URL에서 이미지 다운로드
@@ -37,5 +43,5 @@ def exe_imageEdit(imageURL, chat, interpreter, generator):
     instruction = chat
     prog,_ = generator.generate(instruction)
     result, prog_state, html_str = interpreter.execute(prog,init_state,inspect=True)
-    
-    return result
+
+    return result, html_str
