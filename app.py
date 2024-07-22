@@ -1,5 +1,6 @@
 # 서버 구동
 from flask import Flask, request, render_template, redirect, url_for, send_file
+from flask_cors import CORS
 from gqa_module import *
 import os
 import sys
@@ -12,6 +13,7 @@ from IPython.core.display import HTML
 from functools import partial
 from engine.utils import ProgramGenerator, ProgramInterpreter
 from prompts.gqa import create_prompt
+from prompts.imgeEdit import PROMPT
 import googletrans
 from dotenv import load_dotenv
 load_dotenv()
@@ -25,17 +27,16 @@ from werkzeug.utils import secure_filename
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
+CORS(app)
 
-interpreter = ProgramInterpreter(dataset='gqa')
-prompter = partial(create_prompt,method='all')
-generator = ProgramGenerator(prompter=prompter)
+interpreter = ProgramInterpreter(dataset='imageEdit')
 
 session_id = 0
 conn = connect_to_database()
 cursor = conn.cursor(buffered=True)
 
-# def create_prompt(instruction):
-#     return PROMPT.format(instruction=instruction)
+def create_prompt(instruction):
+    return PROMPT.format(instruction=instruction)
 
 generator = ProgramGenerator(prompter=create_prompt)
 inputs = {}
@@ -81,7 +82,7 @@ def imgupload():
     <html>
         <body>
             <h1><a href="/">visprog </a></h1>
-            <form action="http://127.0.0.1:5000/command_image"
+            <form action="http://localhost:5000/command_image"
                 method="POST"
                 enctype="multipart/form-data">
                 <input type="file" name="file" />
@@ -132,43 +133,32 @@ def imgUploader():
 
 @app.route('/imageEdit', methods=['POST']) #입력 받은 값 전송
 def imageEdit():
-    command_contents = request.form['command_contents'] #명령 가져오기 및 저장
+    data = request.json
+    command_contents = data.get('command_contents')
+    # command_contents = request.form['command_contents']
     en_command = translator.translate(command_contents, dest='en')
     sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
     val1 = (session_id,)
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
-    result, html_str = exe_gqa(image_path, en_command.text, interpreter, generator)
+    result = exe_imageEdit(image_path, en_command.text, interpreter, generator)
 
     result_path = 'final.jpg'
-    print(result, HTML(html_str))
-
-    return f'''<!doctype html>
-    <html>
-        <body>
-            <h1><a href="/">visprog</a></h1>
-            <ol>
-                {result}
-                {HTML(html_str)}
-                {html_str}
-            </ol>
-        </body>
-    </html>
-    '''
 
     result.save(result_path)
-
-    return f'''<!doctype html>
-    <html>
-        <body>
-            <h1><a href="/">visprog</a></h1>
-            <div> instruction : {command_contents}<div>
-            <div> instruction : {en_command.text}<div>
-            <hr>원본 : <img src='{image_path}' width='200' height='200'></hr>
-            <hr>수정 : <img src='/get_image?url={result_path}' width='200' height='200'></hr>
-        </body>
-    </html>
-    '''
+    
+    return redirect(url_for('get_image', url=result_path))
+    # return f'''<!doctype html>
+    # <html>
+    #     <body>
+    #         <h1><a href="/">visprog</a></h1>
+    #         <div> instruction : {command_contents}<div>
+    #         <div> instruction : {en_command.text}<div>
+    #         <hr>원본 : <img src='{image_path}' width='200' height='200'></hr>
+    #         <hr>수정 : <img src='/get_image?url={result_path}' width='200' height='200'></hr>
+    #     </body>
+    # </html>
+    # '''
 
 @app.route('/get_image')
 def get_image():
