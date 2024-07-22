@@ -1338,8 +1338,6 @@ def register_step_interpreters(dataset='nlvr'):
         return dict(
             VQA=VQAInterpreter(),
             EVAL=EvalInterpreter(),
-            SEG=SegmentInterpreter(),
-            SELECT=SelectInterpreter(),
             RESULT=ResultInterpreter()
         )
     elif dataset=='gqa':
@@ -1356,10 +1354,8 @@ def register_step_interpreters(dataset='nlvr'):
             CROP_AHEAD=CropAheadInterpreter(),
             CROP_BELOW=CropBelowInterpreter(),
             CROP_ABOVE=CropAboveInterpreter(),
-            SEG=SegmentInterpreter(),
             VQA=VQAInterpreter(),
             EVAL=EvalInterpreter(),
-            SELECT=SelectInterpreter(),
             RESULT=ResultInterpreter()
         )
     elif dataset=='imageEdit':
