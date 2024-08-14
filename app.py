@@ -143,7 +143,6 @@ def imageEdit():
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
     
-    # Use a unique filename for the result image
     unique_filename = f'edited_{uuid.uuid4().hex}.jpg'
     result_path = os.path.join('result', unique_filename)
 
@@ -170,8 +169,6 @@ def get_image():
     url = request.args.get('url')
     if not url:
         return 'No URL provided', 400
-    
-    # Download image from S3 and serve it directly
     response = requests.get(url)
     
     if response.status_code == 200:
