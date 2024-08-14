@@ -1,5 +1,5 @@
 # 서버 구동
-from flask import Flask, request, render_template, redirect, url_for, send_file
+from flask import Flask, Response, request, render_template, redirect, url_for, send_file
 from flask_cors import CORS
 from gqa_module import *
 import os
@@ -144,24 +144,38 @@ def imageEdit():
     image_path = cursor.fetchone()[0]
     
     # Use a unique filename for the result image
-    unique_filename = f'final_{uuid.uuid4()}.jpg'
+    unique_filename = f'edited_{uuid.uuid4().hex}.jpg'
     result_path = os.path.join('result', unique_filename)
 
     result = exe_imageEdit(image_path, en_command.text, interpreter, generator)
     result.save(result_path)
 
-    sql2 = 'INSERT INTO OriginalImage (filepath, session_id) VALUES (%s, %s)'
-    val2 = (result_path, session_id)
+    s3 = uploads_utils.s3Connection()
+    bucket = 'dear-image-flask'
+    s3_filepath = f'{session_id}/{unique_filename}'
+    s3.upload_file(result_path, bucket, s3_filepath)
+
+    location = s3.get_bucket_location(Bucket=bucket)["LocationConstraint"]
+    url = f"https://{bucket}.s3.{location}.amazonaws.com/{s3_filepath}"
+
+    sql2 = 'UPDATE OriginalImage SET filepath=%s WHERE session_id=%s'
+    val2 = (url, session_id)
     cursor.execute(sql2, val2)
     conn.commit()
     
-    return redirect(url_for('get_image', url=result_path))
+    return redirect(url_for('get_image', url=url))
 
 @app.route('/get_image')
 def get_image():
     url = request.args.get('url')
-    img_path = os.path.join(app.root_path, url.lstrip('/'))
+    if not url:
+        return 'No URL provided', 400
     
-    return send_file(img_path)
-
+    # Download image from S3 and serve it directly
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        return Response(response.content, mimetype='image/jpeg')
+    else:
+        return 'Image not found', 404
 app.run()
