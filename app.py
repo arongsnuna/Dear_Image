@@ -74,11 +74,22 @@ def start():
 @app.route('/imgupload') #사진 업로드
 def imgupload():
     global session_id
-    if session_id is None:
-        session_id = str(uuid.uuid4())
-        sql = 'INSERT INTO Session (session_id) VALUES (%s)'
-        cursor.execute(sql, (session_id,))
+    # 기존 세션이 있으면 삭제
+    if session_id:
+        # 세션과 관련된 모든 데이터를 삭제
+        sql_delete_images = 'DELETE FROM OriginalImage WHERE session_id=%s'
+        cursor.execute(sql_delete_images, (session_id,))
         conn.commit()
+        
+        sql_delete_session = 'DELETE FROM Session WHERE session_id=%s'
+        cursor.execute(sql_delete_session, (session_id,))
+        conn.commit()
+    
+    # 새로운 세션 생성
+    session_id = str(uuid.uuid4())
+    sql_insert = 'INSERT INTO Session (session_id) VALUES (%s)'
+    cursor.execute(sql_insert, (session_id,))
+    conn.commit()
     return f'''<!doctype html>
     <html>
         <body>
