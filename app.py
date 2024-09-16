@@ -1,5 +1,6 @@
 # 서버 구동
-from flask import Flask, request, render_template, redirect, url_for, send_file
+from flask import Flask, Response, request, render_template, redirect, url_for, send_file
+from flask_cors import CORS
 from gqa_module import *
 import os
 import sys
@@ -26,10 +27,11 @@ from werkzeug.utils import secure_filename
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
+CORS(app)
 
 interpreter = ProgramInterpreter(dataset='imageEdit')
 
-session_id = 0
+session_id = None
 conn = connect_to_database()
 cursor = conn.cursor(buffered=True)
 
@@ -38,7 +40,7 @@ def create_prompt(instruction):
 
 generator = ProgramGenerator(prompter=create_prompt)
 inputs = {}
-origin = 'result/original.jpg'
+origin = 'result/original.png'
 translator = googletrans.Translator()
 
 @app.route('/')
@@ -72,9 +74,21 @@ def start():
 @app.route('/imgupload') #사진 업로드
 def imgupload():
     global session_id
+    # 기존 세션이 있으면 삭제
+    if session_id:
+        # 세션과 관련된 모든 데이터를 삭제
+        sql_delete_images = 'DELETE FROM OriginalImage WHERE session_id=%s'
+        cursor.execute(sql_delete_images, (session_id,))
+        conn.commit()
+        
+        sql_delete_session = 'DELETE FROM Session WHERE session_id=%s'
+        cursor.execute(sql_delete_session, (session_id,))
+        conn.commit()
+    
+    # 새로운 세션 생성
     session_id = str(uuid.uuid4())
-    sql = 'INSERT INTO Session (session_id) VALUES (%s)'
-    cursor.execute(sql, (session_id,))
+    sql_insert = 'INSERT INTO Session (session_id) VALUES (%s)'
+    cursor.execute(sql_insert, (session_id,))
     conn.commit()
     return f'''<!doctype html>
     <html>
@@ -131,39 +145,45 @@ def imgUploader():
 
 @app.route('/imageEdit', methods=['POST']) #입력 받은 값 전송
 def imageEdit():
-    command_contents = request.form['command_contents'] #명령 가져오기 및 저장
+    data = request.json
+    command_contents = data.get('command_contents')
     en_command = translator.translate(command_contents, dest='en')
+    
     sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
     val1 = (session_id,)
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
+    
+    unique_filename = f'edited_{uuid.uuid4().hex}.png'
+    result_path = os.path.join('result', unique_filename)
+
     result = exe_imageEdit(image_path, en_command.text, interpreter, generator)
-
-    result_path = 'final.jpg'
-
     result.save(result_path)
 
-    return f'''<!doctype html>
-    <html>
-        <body>
-            <h1><a href="/">visprog</a></h1>
-            <div> instruction : {command_contents}<div>
-            <div> instruction : {en_command.text}<div>
-            <hr>원본 : <img src='{image_path}' width='200' height='200'></hr>
-            <hr>수정 : <img src='/get_image?url={result_path}' width='200' height='200'></hr>
-        </body>
-    </html>
-    '''
+    s3 = uploads_utils.s3Connection()
+    bucket = 'dear-image-flask'
+    s3_filepath = f'{session_id}/{unique_filename}'
+    s3.upload_file(result_path, bucket, s3_filepath)
+
+    location = s3.get_bucket_location(Bucket=bucket)["LocationConstraint"]
+    url = f"https://{bucket}.s3.{location}.amazonaws.com/{s3_filepath}"
+
+    sql2 = 'UPDATE OriginalImage SET filepath=%s WHERE session_id=%s'
+    val2 = (url, session_id)
+    cursor.execute(sql2, val2)
+    conn.commit()
+    
+    return redirect(url_for('get_image', url=url))
 
 @app.route('/get_image')
 def get_image():
-    # URL로 전달된 파일 경로 가져오기
     url = request.args.get('url')
-
-    # 파일 경로로부터 이미지 파일 읽어오기
-    img_path = os.path.join(app.root_path, url.lstrip('/'))
-
-    # 이미지 파일을 클라이언트에게 전송
-    return send_file(img_path)
-
+    if not url:
+        return 'No URL provided', 400
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        return Response(response.content, mimetype='image/png')
+    else:
+        return 'Image not found', 404
 app.run()
