@@ -1445,7 +1445,7 @@ def register_step_interpreters(dataset='nlvr'):
             SELECT=SelectInterpreter(),
             COLORPOP=ColorpopInterpreter(),
             BGBLUR=BgBlurInterpreter(),
-            REPLACE=ReplaceInterpreter(),
+            # REPLACE=ReplaceInterpreter(),
             EMOJI=EmojiInterpreter(),
             #추가            
             REMOVEBG=RemovebgInterpreter(),
