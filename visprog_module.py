@@ -45,7 +45,7 @@ def generate_text_response(imageURL, user_msg):
         "messages": [
             {
                 "role": "system",
-                "content": "You are a photo editor. You can do color pop, replace, blur operation for each object in the image."
+                "content": "You are a photo editor. You can only do color pop, replace, blur operation for each object in the image, and remove background of the selected object."
             },
             {
                 "role": "user",
@@ -111,7 +111,7 @@ def exe_imageEdit(imageURL, chat):
 # Main handler function to either process image or generate text response
 def imageHandler(imageURL, chat):
     # List of specific commands that trigger image processing
-    photo_editing_commands = ["colorpop", "replace", "blur"]
+    photo_editing_commands = ["colorpop", "replace", "blur", "remove"]
 
     # Check if the input contains an image editing command
     if any(command in chat.lower() for command in photo_editing_commands):

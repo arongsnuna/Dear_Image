@@ -8,7 +8,7 @@ def image_formatter(img_path,size=224,vertical_align='middle'):
     img = Image.open(img_path)
     img.thumbnail((size,size), Image.ANTIALIAS)
     with BytesIO() as buffer:
-        img.save(buffer, 'jpeg')
+        img.save(buffer, 'png')
         base64_img = base64.b64encode(buffer.getvalue()).decode()
     return f'<img style="vertical-align:{vertical_align}" src="data:image/jpeg;base64,{base64_img}">'
 
@@ -17,7 +17,7 @@ def html_embed_image(img,size=100):
     img =  img.copy()
     img.thumbnail((size,size), Image.ANTIALIAS)
     with BytesIO() as buffer:
-        img.save(buffer, 'jpeg')
+        img.save(buffer, 'png')
         base64_img = base64.b64encode(buffer.getvalue()).decode()
     return f'<img style="vertical-align:middle" src="data:image/jpeg;base64,{base64_img}">'
 
