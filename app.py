@@ -28,6 +28,7 @@ CORS(app, resources={r"/*": {"origins": "*"}, "supports_credentials": True})
 
 
 
+
 session_id = None
 conn = connect_to_database()
 cursor = conn.cursor(buffered=True)
