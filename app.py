@@ -24,7 +24,8 @@ from werkzeug.utils import secure_filename
 OPENAI_API_KEY = os.getenv('<openai-api-key>')
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}, "supports_credentials": True})
+
 
 
 session_id = None
