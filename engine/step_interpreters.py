@@ -16,7 +16,7 @@ from transformers import (ViltProcessor, ViltForQuestionAnswering,
 from diffusers import StableDiffusionInpaintPipeline
 
 from .nms import nms
-from vis_utils import html_embed_image, html_colored_span, vis_masks, image_saver
+from vis_utils import html_embed_image, html_colored_span, vis_masks
 
 
 def parse_step(step_str, partial=False):
@@ -287,15 +287,14 @@ class LocInterpreter():
         return img1
 
     def html(self,img,box_img,output_var,obj_name):
-        image_saver(box_img, obj_name)
         step_name=html_step_name(self.step_name)
         obj_arg=html_arg_name('object')
         img_arg=html_arg_name('image')
         output_var=html_var_name(output_var)
         img=html_embed_image(img)
         box_img=html_embed_image(box_img,300)
-        #return f"<div>{output_var}={step_name}({img_arg}={img}, {obj_arg}='{obj_name}')={box_img}</div>"
-        return f"<div>{obj_arg}='{obj_name}' : {box_img}</div>"
+        return f"<div>{output_var}={step_name}({img_arg}={img}, {obj_arg}='{obj_name}')={box_img}</div>"
+
 
     def execute(self,prog_step,inspect=False):
         img_var,obj_name,output_var = self.parse(prog_step)
@@ -807,9 +806,99 @@ class ColorpopInterpreter():
 
         return gimg
 
-
+# 수정 - 블러
 class BgBlurInterpreter():
     step_name = 'BGBLUR'
+
+    def __init__(self):
+        print(f'Registering {self.step_name} step')
+
+    def parse(self,prog_step):
+        parse_result = parse_step(prog_step.prog_str)
+        step_name = parse_result['step_name']
+        img_var = parse_result['args']['image']
+        obj_var = parse_result['args']['object']
+        background = eval(parse_result['args']['background'])
+        output_var = parse_result['output_var']
+        assert(step_name==self.step_name)
+        return img_var,obj_var,output_var,background
+
+    #마스크 생성
+    def refine_mask(self,img,mask):
+        bgdModel = np.zeros((1,65),np.float64) #배경
+        fgdModel = np.zeros((1,65),np.float64) #전경(객체)
+        mask,_,_ = cv2.grabCut(
+            img.astype(np.uint8),
+            mask.astype(np.uint8),
+            None,
+            bgdModel,
+            fgdModel,
+            5,
+            cv2.GC_INIT_WITH_MASK)
+        return mask.astype(float)
+
+    #마스크 경계 자연스럽게
+    def smoothen_mask(self,mask):
+        mask = Image.fromarray(255*mask.astype(np.uint8)).filter(
+            ImageFilter.GaussianBlur(radius = 20))
+        return np.array(mask).astype(float)/255
+
+    def html(self,img_var,obj_var,output_var,output,background):
+        step_name = html_step_name(self.step_name)
+        img_var = html_var_name(img_var)
+        obj_var = html_var_name(obj_var)
+        output_var = html_var_name(output_var)
+        is_background = html_var_name('background')
+        img_arg = html_arg_name('image')
+        obj_arg = html_arg_name('object')
+        output = html_embed_image(output,300)
+        return f"""{output_var}={step_name}({img_arg}={img_var},{obj_arg}={obj_var},{is_background}={background})={output}"""    
+                
+    def execute(self,prog_step,inspect=False):
+        img_var,obj_var,output_var,background = self.parse(prog_step)
+        img = prog_step.state[img_var]
+        objs = prog_step.state[obj_var]
+        bgimg = img.copy()
+        bgimg = bgimg.filter(ImageFilter.GaussianBlur(radius = 10)) #이미지 전체 블러처리
+        
+        blurimg = img.copy()
+        blurimg = blurimg.filter(ImageFilter.GaussianBlur(radius = 10)) #이미지 전체 블러처리
+        
+        bgimg = np.array(bgimg).astype(float) 
+        img = np.array(img).astype(float)
+        blurimg = np.array(blurimg).astype(float)
+        
+        i = 0
+        for obj in objs: #객체가 있으면
+            #객체를 기준으로 마스크 생성 > 객체 분리
+            refined_mask = self.refine_mask(img, obj['mask'])
+            #전경, 배경 결합해 마스크 생성
+            mask = np.tile(refined_mask[:,:,np.newaxis],(1,1,3)) 
+            mask = self.smoothen_mask(mask) #마스크 자연스럽게
+            
+            if background == 'True':
+                bgimg = mask * img + (1 - mask) * bgimg
+                
+            elif background == 'False':
+                if i==0 :
+                    bgimg = mask * blurimg + (1-mask) * img
+                else :
+                    bgimg = mask * blurimg + (1-mask) * bgimg
+            i+=1
+    
+
+        bgimg = np.array(bgimg).astype(np.uint8)
+        bgimg = Image.fromarray(bgimg)
+        prog_step.state[output_var] = bgimg
+        if inspect:
+            html_str = self.html(img_var, obj_var, output_var, bgimg, background)
+            return bgimg, html_str
+
+        return bgimg
+
+# 수정 - 배경삭제
+class RemovebgInterpreter():
+    step_name = 'REMOVEBG'
 
     def __init__(self):
         print(f'Registering {self.step_name} step')
@@ -822,25 +911,7 @@ class BgBlurInterpreter():
         output_var = parse_result['output_var']
         assert(step_name==self.step_name)
         return img_var,obj_var,output_var
-
-    def refine_mask(self,img,mask):
-        bgdModel = np.zeros((1,65),np.float64)
-        fgdModel = np.zeros((1,65),np.float64)
-        mask,_,_ = cv2.grabCut(
-            img.astype(np.uint8),
-            mask.astype(np.uint8),
-            None,
-            bgdModel,
-            fgdModel,
-            5,
-            cv2.GC_INIT_WITH_MASK)
-        return mask.astype(float)
-
-    def smoothen_mask(self,mask):
-        mask = Image.fromarray(255*mask.astype(np.uint8)).filter(
-            ImageFilter.GaussianBlur(radius = 5))
-        return np.array(mask).astype(float)/255
-
+    
     def html(self,img_var,obj_var,output_var,output):
         step_name = html_step_name(self.step_name)
         img_var = html_var_name(img_var)
@@ -849,32 +920,41 @@ class BgBlurInterpreter():
         img_arg = html_arg_name('image')
         obj_arg = html_arg_name('object')
         output = html_embed_image(output,300)
-        return f"""{output_var}={step_name}({img_arg}={img_var},{obj_arg}={obj_var})={output}"""
-
+        return f"""{output_var}={step_name}({img_arg}={img_var},{obj_arg}={obj_var})={output}"""    
+    
+    def remove(self, img):
+        tmp = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        _, alpha = cv2.threshold(tmp, 0, 255, cv2.THRESH_BINARY)
+        b, g, r = cv2.split(img)
+        rgba = [b, g, r, alpha] #알파값을 추가해서 투명도 나타냄
+        dst = cv2.merge(rgba, 4)
+        result_img = Image.fromarray(dst)
+        return result_img
+        
     def execute(self,prog_step,inspect=False):
         img_var,obj_var,output_var = self.parse(prog_step)
         img = prog_step.state[img_var]
         objs = prog_step.state[obj_var]
-        bgimg = img.copy()
-        bgimg = bgimg.filter(ImageFilter.GaussianBlur(radius = 2))
-        bgimg = np.array(bgimg).astype(float)
+        
         img = np.array(img).astype(float)
+        black_img = np.zeros_like(img, dtype=float) #img와 크기가 같은 검정색 이미지
+        
         for obj in objs:
-            refined_mask = self.refine_mask(img, obj['mask'])
-            mask = np.tile(refined_mask[:,:,np.newaxis],(1,1,3))
-            mask = self.smoothen_mask(mask)
-            bgimg = mask*img + (1-mask)*bgimg
-
-        bgimg = np.array(bgimg).astype(np.uint8)
-        bgimg = Image.fromarray(bgimg)
-        prog_step.state[output_var] = bgimg
+            mask = obj['mask']
+            mask = np.tile(mask[:,:,np.newaxis],(1,1,3))
+            black_img = mask * img + (1-mask) * black_img #객체는 그대로, 배경은 검정색으로 for문 돌면서 누적
+            
+        result_img = np.array(black_img).astype(np.uint8)
+        result_img = self.remove(result_img) 
+        
+        prog_step.state[output_var] = result_img
+        
         if inspect:
-            html_str = self.html(img_var, obj_var, output_var, bgimg)
-            return bgimg, html_str
-
-        return bgimg
-
-
+            html_str = self.html(img_var, obj_var, output_var, result_img)
+            return result_img, html_str
+        
+        return result_img
+    
 class FaceDetInterpreter():
     step_name = 'FACEDET'
 
@@ -1331,8 +1411,7 @@ class ReplaceInterpreter():
         if inspect:
             html_str = self.html(img_var, obj_var, prompt, output_var, new_img)
             return new_img, html_str
-        return new_img
-
+        return new_img    
 
 def register_step_interpreters(dataset='nlvr'):
     if dataset=='nlvr':
@@ -1366,8 +1445,10 @@ def register_step_interpreters(dataset='nlvr'):
             SELECT=SelectInterpreter(),
             COLORPOP=ColorpopInterpreter(),
             BGBLUR=BgBlurInterpreter(),
-            #REPLACE=ReplaceInterpreter(),
+            REPLACE=ReplaceInterpreter(),
             EMOJI=EmojiInterpreter(),
+            #추가            
+            REMOVEBG=RemovebgInterpreter(),
             RESULT=ResultInterpreter()
         )
     elif dataset=='okDet':
