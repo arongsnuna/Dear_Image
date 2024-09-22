@@ -1,7 +1,8 @@
 # 서버 구동
 from flask import Flask, Response, request, render_template, redirect, url_for, send_file
 from flask_cors import CORS
-from gqa_module import *
+import requests
+from visprog_module import imageHandler
 import os
 import sys
 module_path = os.path.abspath(os.path.join('..'))
@@ -11,9 +12,10 @@ if module_path not in sys.path:
 from PIL import Image
 from IPython.core.display import HTML
 from functools import partial
+
 from engine.utils import ProgramGenerator, ProgramInterpreter
-from prompts.gqa import create_prompt
 from prompts.imgeEdit import PROMPT
+
 import googletrans
 from dotenv import load_dotenv
 load_dotenv()
@@ -30,17 +32,19 @@ app = Flask(__name__)
 CORS(app)
 
 interpreter = ProgramInterpreter(dataset='imageEdit')
+def create_prompt(instruction):
+    return PROMPT.format(instruction=instruction)
+
+generator = ProgramGenerator(prompter=create_prompt)
+
 
 session_id = None
 conn = connect_to_database()
 cursor = conn.cursor(buffered=True)
 
-def create_prompt(instruction):
-    return PROMPT.format(instruction=instruction)
 
-generator = ProgramGenerator(prompter=create_prompt)
 inputs = {}
-origin = 'result/original.jpg'
+origin = 'result/original.png'
 translator = googletrans.Translator()
 
 @app.route('/')
@@ -147,33 +151,40 @@ def imgUploader():
 def imageEdit():
     data = request.json
     command_contents = data.get('command_contents')
+    print(f'command_contents: {command_contents}')  # 추가된 부분
     en_command = translator.translate(command_contents, dest='en')
+    print(f'en_command: {en_command}')
     
     sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
     val1 = (session_id,)
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
     
-    unique_filename = f'edited_{uuid.uuid4().hex}.jpg'
-    result_path = os.path.join('result', unique_filename)
-
-    result = exe_imageEdit(image_path, en_command.text, interpreter, generator)
-    result.save(result_path)
-
-    s3 = uploads_utils.s3Connection()
-    bucket = 'dear-image-flask'
-    s3_filepath = f'{session_id}/{unique_filename}'
-    s3.upload_file(result_path, bucket, s3_filepath)
-
-    location = s3.get_bucket_location(Bucket=bucket)["LocationConstraint"]
-    url = f"https://{bucket}.s3.{location}.amazonaws.com/{s3_filepath}"
-
-    sql2 = 'UPDATE OriginalImage SET filepath=%s WHERE session_id=%s'
-    val2 = (url, session_id)
-    cursor.execute(sql2, val2)
-    conn.commit()
+    # Use imageHandler instead of exe_imageEdit
+    result = imageHandler(image_path, en_command.text, interpreter, generator)
     
-    return redirect(url_for('get_image', url=url))
+    # Check if the result is text or an image and handle accordingly
+    if isinstance(result, str):  # If result is a text message
+        return {'type': 'text', 'message': result}
+    else:  # If result is an image
+        unique_filename = f'edited_{uuid.uuid4().hex}.png'
+        result_path = os.path.join('result', unique_filename)
+        result.save(result_path)
+
+        s3 = uploads_utils.s3Connection()
+        bucket = 'dear-image-flask'
+        s3_filepath = f'{session_id}/{unique_filename}'
+        s3.upload_file(result_path, bucket, s3_filepath)
+
+        location = s3.get_bucket_location(Bucket=bucket)["LocationConstraint"]
+        url = f"https://{bucket}.s3.{location}.amazonaws.com/{s3_filepath}"
+
+        sql2 = 'UPDATE OriginalImage SET filepath=%s WHERE session_id=%s'
+        val2 = (url, session_id)
+        cursor.execute(sql2, val2)
+        conn.commit()
+        
+        return {'type': 'image', 'url': url}
 
 @app.route('/get_image')
 def get_image():
@@ -183,7 +194,7 @@ def get_image():
     response = requests.get(url)
     
     if response.status_code == 200:
-        return Response(response.content, mimetype='image/jpeg')
+        return Response(response.content, mimetype='image/png')
     else:
         return 'Image not found', 404
 app.run()
