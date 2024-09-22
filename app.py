@@ -108,12 +108,8 @@ def imgupload():
     </html>
     '''
 
-### 블러, 컬러팝 사용 시 객체 선택 필수
-### >> ex) 낙타를 선택하고 블러해줘
-### >> 객체 미선택 시 작동 안함
-
-
-@app.route('/command_image', methods=['POST']) #이미지 저장 및 커맨드 입력
+#이미지 저장 및 커맨드 입력
+@app.route('/command_image', methods=['POST'])
 def imgUploader():
     s3 = uploads_utils.s3Connection()
     bucket = 'dear-image-flask'
@@ -147,12 +143,15 @@ def imgUploader():
     </html>
     '''
 
-@app.route('/imageEdit', methods=['POST']) #입력 받은 값 전송
+#입력 받은 값 전송
+@app.route('/imageEdit', methods=['POST'])
 def imageEdit():
     data = request.json
     command_contents = data.get('command_contents')
-    print(f'command_contents: {command_contents}')  # 추가된 부분
+    # 커맨드 로그
+    print(f'command_contents: {command_contents}') 
     en_command = translator.translate(command_contents, dest='en')
+    # 영어 번역 로그(visprog_module.imageHandler의 특정 커맨드 추가)
     print(f'en_command: {en_command}')
     
     sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
@@ -160,13 +159,15 @@ def imageEdit():
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
     
-    # Use imageHandler instead of exe_imageEdit
+    # 커맨드에 특정 문자가 없으면 chatgpt, 있으면 이미지 수정
     result = imageHandler(image_path, en_command.text, interpreter, generator)
     
-    # Check if the result is text or an image and handle accordingly
-    if isinstance(result, str):  # If result is a text message
+    # 결과 값 확인
+    if isinstance(result, str): 
+        # 결과 값이 텍스트일 경우
         return {'type': 'text', 'message': result}
-    else:  # If result is an image
+    else:
+        # 결과 값이 이미지일 경우
         unique_filename = f'edited_{uuid.uuid4().hex}.png'
         result_path = os.path.join('result', unique_filename)
         result.save(result_path)

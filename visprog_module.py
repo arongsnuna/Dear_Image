@@ -26,11 +26,10 @@ def encode_image(imageURL):
 
     return encoded_image
 
-# Function to handle OpenAI text generation
+# 챗피지티 사용
 def generate_text_response(imageURL, user_msg):
     api_key = os.getenv("OPENAI_API_KEY")
-        
-    # Getting the base64 string
+
     base64_image = encode_image(imageURL)
     
     headers = {
@@ -38,7 +37,6 @@ def generate_text_response(imageURL, user_msg):
         "Authorization": f"Bearer {api_key}"
     }
 
-    # Adjust the payload structure for better compatibility with the API
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
@@ -67,22 +65,19 @@ def generate_text_response(imageURL, user_msg):
 
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
 
-    # Parse the JSON response and handle errors
     try:
         response_json = response.json()
         english_response = response_json['choices'][0]['message']['content']
         
-        # Translate the response to Korean
         korean_response = translate_to_korean(english_response)
         return korean_response
 
     except KeyError as e:
-        # Log the actual error message and return it
         return f"An error occurred: {str(e)}"
     except Exception as e:
-        # Catch any other potential errors
         return f"An unexpected error occurred: {str(e)}"
 
+# 한글 번역
 def translate_to_korean(text):
     translator = Translator()
     try:
@@ -91,17 +86,14 @@ def translate_to_korean(text):
     except Exception as e:
         return f"Translation error: {str(e)}"
 
-# Image editing logic with ProgramInterpreter and ProgramGenerator
+# 이미지 수정
 def exe_imageEdit(imageURL, chat, interpreter, generator):
 
-    # URL에서 이미지 다운로드
     response = requests.get(imageURL)
     image_data = response.content
 
-    # 이미지 데이터를 PIL Image로 열기
     image = Image.open(BytesIO(image_data))
 
-    # Process the image to 640x640 size
     image.thumbnail((640, 640), Image.Resampling.LANCZOS)
     
     init_state = dict(
@@ -114,12 +106,10 @@ def exe_imageEdit(imageURL, chat, interpreter, generator):
     
     return result
 
-# Main handler function to either process image or generate text response
 def imageHandler(imageURL, chat, interpreter=None, generator=None):
-    # List of specific commands that trigger image processing
+    
     photo_editing_commands = ["colorpop", "replace", "blur", "remove", "pop", "select", "change"]
 
-    # Check if the input contains an image editing command
     if any(command in chat.lower() for command in photo_editing_commands):
         return exe_imageEdit(imageURL, chat, interpreter, generator)
     else:
