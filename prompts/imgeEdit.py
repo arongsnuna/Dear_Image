@@ -50,11 +50,18 @@ OBJ1=SELECT(image=IMAGE,object=OBJ0,query='man wearing a red suit',category='per
 IMAGE0=COLORPOP(image=IMAGE,object=OBJ1)
 FINAL_RESULT=RESULT(var=IMAGE0)
 
-Instruction: Select the red bus and blur the background
+Instruction: Create a color pop of the man wearing a red suit (person)
 Program:
 OBJ0=SEG(image=IMAGE)
-OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus',category=None)
-IMAGE0=BGBLUR(image=IMAGE,object=OBJ1)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='man wearing a red suit',category='person')
+IMAGE0=COLORPOP(image=IMAGE,object=OBJ1)
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Select person wearing glass and blur
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='wearing glass',category='person')
+IMAGE0=BGBLUR(image=IMAGE,object=OBJ1,background='False')
 FINAL_RESULT=RESULT(var=IMAGE0)
 
 Instruction: Replace the red bus with a blue bus
@@ -79,6 +86,49 @@ Program:
 OBJ0=SEG(image=IMAGE)
 OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus',category='bus')
 IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt='blue bus')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+# 수정 - 예시문 추가
+Instruction: Select ground and remove background
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='ground')
+IMAGE0=REMOVEBG(image=IMAGE,object=OBJ1)
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Select ground and delete background
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='ground')
+IMAGE0=REMOVEBG(image=IMAGE,object=OBJ1)
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Select the red bus, blue bus and blur the background
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus,blue bus',category=None)
+IMAGE0=BGBLUR(image=IMAGE,object=OBJ1,background='True')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Select the red bus and blur the background
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus',category=None)
+IMAGE0=BGBLUR(image=IMAGE,object=OBJ1,background='True')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Select the red bus and blur
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus',category=None)
+IMAGE0=BGBLUR(image=IMAGE,object=OBJ1,background='False')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Select the red bus, blue bus and blur
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus, blue bus',category=None)
+IMAGE0=BGBLUR(image=IMAGE,object=OBJ1,background='False')
 FINAL_RESULT=RESULT(var=IMAGE0)
 
 Instruction: {instruction}
