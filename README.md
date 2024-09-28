@@ -1,5 +1,6 @@
 # Dear Image: Integrated Image Editing Service Using Visprog
-https://cdn.discordapp.com/attachments/1176516566679027794/1287062574814199879/image.png?ex=66f9686e&is=66f816ee&hm=6e9e067b9c6ab8ababacb4043c307e21e91b9e32c20ec43b85dc65f498c8b7a3&
+<img width="955" alt="imddddage" src="https://github.com/user-attachments/assets/9a372d72-2803-4c22-84d3-df5d9da9ed89">
+
 
 ## Overview
 
@@ -39,12 +40,12 @@ Dear Image aims to revolutionize the way users interact with image editing by pr
 
 ## Contributors
 
-- 이병규 (201910991)
-- 김진영 (202010851)
-- 김채연 (202010768)
-- 김혜린 (202010854)
-- 박은희 (202010863)
-- 진시연 (202010923)
+- [박은희 | 팀장](https://github.com/arongsnuna)
+- [이병규 | 팀원](https://github.com/naron88)
+- [김진영 | 팀원](https://github.com/Jin0-K)
+- [김채연 | 팀원](https://github.com/yeon-22k)
+- [김혜린 | 팀원](https://github.com/hyerin202010854)
+- [진시연 | 팀원](https://github.com/J-SY00)
 
 ## GitHub Repositories
 
