@@ -52,6 +52,11 @@ Dear Image aims to revolutionize the way users interact with image editing by pr
 - **Backend Code:** The backend for Dear Image, including the modular command processing and AI functionalities, is available at [https://github.com/arongsnuna/Dear_Image](https://github.com/arongsnuna/Dear_Image).
 - **Frontend Code:** The frontend for Dear Image, handling user interface and interactions, can be found at [https://github.com/J-SY00/DearFront](https://github.com/J-SY00/DearFront).
 
+## Demo
+
+Check out the demo video showcasing the functionalities of Visprog [here](https://github.com/user-attachments/assets/549055bf-1f29-4349-99d4-77a72ac6e600).
+
+
 
 ## References
 
