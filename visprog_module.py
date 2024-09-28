@@ -4,8 +4,7 @@ import base64
 import requests
 from io import BytesIO
 from PIL import Image
-from prompts.imgeEdit import PROMPT
-from engine.utils import ProgramGenerator, ProgramInterpreter
+from googletrans import Translator
 
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
@@ -27,19 +26,17 @@ def encode_image(imageURL):
 
     return encoded_image
 
-# Function to handle OpenAI text generation
+# 챗피지티 사용
 def generate_text_response(imageURL, user_msg):
     api_key = os.getenv("OPENAI_API_KEY")
-        
-    # Getting the base64 string
+
+
     base64_image = encode_image(imageURL)
-    
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }
 
-    # Adjust the payload structure for better compatibility with the API
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
@@ -68,36 +65,37 @@ def generate_text_response(imageURL, user_msg):
 
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
 
-    # Parse the JSON response and handle errors
+
     try:
         response_json = response.json()
-        return response_json['choices'][0]['message']['content']
+        english_response = response_json['choices'][0]['message']['content']
+        
+        korean_response = translate_to_korean(english_response)
+        return korean_response
+
     except KeyError as e:
-        # Log the actual error message and return it
         return f"An error occurred: {str(e)}"
     except Exception as e:
-        # Catch any other potential errors
         return f"An unexpected error occurred: {str(e)}"
 
-# Create a prompt based on the user's instruction
-def create_prompt(instruction):
-    return PROMPT.format(instruction=instruction)
+# 한글 번역
+def translate_to_korean(text):
+    translator = Translator()
+    try:
+        translated = translator.translate(text, dest='ko')
+        return translated.text
+    except Exception as e:
+        return f"Translation error: {str(e)}"
 
-# Image editing logic with ProgramInterpreter and ProgramGenerator
-def exe_imageEdit(imageURL, chat):
-    interpreter = ProgramInterpreter(dataset='imageEdit')
-    generator = ProgramGenerator(prompter=create_prompt)
-    
-    # URL에서 이미지 다운로드
+# 이미지 수정
+def exe_imageEdit(imageURL, chat, interpreter, generator):
+
     response = requests.get(imageURL)
     image_data = response.content
 
-    # 이미지 데이터를 PIL Image로 열기
     image = Image.open(BytesIO(image_data))
 
-    # Process the image to 640x640 size
     image.thumbnail((640, 640), Image.Resampling.LANCZOS)
-    
     init_state = dict(
         IMAGE=image.convert('RGB')
     )
@@ -105,16 +103,13 @@ def exe_imageEdit(imageURL, chat):
     instruction = chat
     prog, _ = generator.generate(instruction)
     result, prog_state, html_str = interpreter.execute(prog, init_state, inspect=True)
-    
     return result
 
-# Main handler function to either process image or generate text response
-def imageHandler(imageURL, chat):
-    # List of specific commands that trigger image processing
-    photo_editing_commands = ["colorpop", "replace", "blur", "remove"]
 
-    # Check if the input contains an image editing command
+def imageHandler(imageURL, chat, interpreter=None, generator=None):
+    photo_editing_commands = ["colorpop", "replace", "blur", "remove", "pop", "select", "change"]
+
     if any(command in chat.lower() for command in photo_editing_commands):
-        return exe_imageEdit(imageURL, chat)
+        return exe_imageEdit(imageURL, chat, interpreter, generator)
     else:
         return generate_text_response(imageURL, chat)

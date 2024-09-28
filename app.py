@@ -1,16 +1,18 @@
 # 서버 구동
 from flask import Flask, Response, request, render_template, redirect, url_for, send_file
 from flask_cors import CORS
+import requests
 from visprog_module import imageHandler
 import os
 import sys
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
-
 from PIL import Image
 from IPython.core.display import HTML
 from functools import partial
+from engine.utils import ProgramGenerator, ProgramInterpreter
+from prompts.imgeEdit import PROMPT
 import googletrans
 from dotenv import load_dotenv
 load_dotenv()
@@ -21,12 +23,17 @@ import uuid
 import uploads_utils
 from werkzeug.utils import secure_filename
 
-OPENAI_API_KEY = os.getenv('<openai-api-key>')
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}, "supports_credentials": True})
+CORS(app)
 
+interpreter = ProgramInterpreter(dataset='imageEdit')
+def create_prompt(instruction):
+    return PROMPT.format(instruction=instruction)
 
+generator = ProgramGenerator(prompter=create_prompt)
 
 
 session_id = None
@@ -75,11 +82,11 @@ def imgupload():
         sql_delete_images = 'DELETE FROM OriginalImage WHERE session_id=%s'
         cursor.execute(sql_delete_images, (session_id,))
         conn.commit()
-        
+
         sql_delete_session = 'DELETE FROM Session WHERE session_id=%s'
         cursor.execute(sql_delete_session, (session_id,))
         conn.commit()
-    
+
     # 새로운 세션 생성
     session_id = str(uuid.uuid4())
     sql_insert = 'INSERT INTO Session (session_id) VALUES (%s)'
@@ -99,12 +106,8 @@ def imgupload():
     </html>
     '''
 
-### 블러, 컬러팝 사용 시 객체 선택 필수
-### >> ex) 낙타를 선택하고 블러해줘
-### >> 객체 미선택 시 작동 안함
-
-
-@app.route('/command_image', methods=['POST']) #이미지 저장 및 커맨드 입력
+#이미지 저장 및 커맨드 입력
+@app.route('/command_image', methods=['POST'])
 def imgUploader():
     s3 = uploads_utils.s3Connection()
     bucket = 'dear-image-flask'
@@ -138,24 +141,30 @@ def imgUploader():
     </html>
     '''
 
-@app.route('/imageEdit', methods=['POST']) #입력 받은 값 전송
+
+#입력 받은 값 전송
+@app.route('/imageEdit', methods=['POST'])
 def imageEdit():
     data = request.json
     command_contents = data.get('command_contents')
+    # 커맨드 로그
+    print(f'command_contents: {command_contents}') 
     en_command = translator.translate(command_contents, dest='en')
-    
+    # 영어 번역 로그(visprog_module.imageHandler의 특정 커맨드 추가)
+    print(f'en_command: {en_command}')
     sql1 = 'SELECT filepath FROM OriginalImage WHERE session_id=%s'
     val1 = (session_id,)
     cursor.execute(sql1, val1)
     image_path = cursor.fetchone()[0]
-    
-    # Use imageHandler instead of exe_imageEdit
-    result = imageHandler(image_path, en_command.text)
-    
-    # Check if the result is text or an image and handle accordingly
-    if isinstance(result, str):  # If result is a text message
+
+    # 커맨드에 특정 문자가 없으면 chatgpt, 있으면 이미지 수정
+    result = imageHandler(image_path, en_command.text, interpreter, generator)
+    # 결과 값 확인
+    if isinstance(result, str):
+        # 결과 값이 텍스트일 경우
         return {'type': 'text', 'message': result}
-    else:  # If result is an image
+    else:
+        # 결과 값이 이미지일 경우
         unique_filename = f'edited_{uuid.uuid4().hex}.png'
         result_path = os.path.join('result', unique_filename)
         result.save(result_path)
@@ -172,7 +181,7 @@ def imageEdit():
         val2 = (url, session_id)
         cursor.execute(sql2, val2)
         conn.commit()
-        
+
         return {'type': 'image', 'url': url}
 
 @app.route('/get_image')
@@ -181,7 +190,7 @@ def get_image():
     if not url:
         return 'No URL provided', 400
     response = requests.get(url)
-    
+
     if response.status_code == 200:
         return Response(response.content, mimetype='image/png')
     else:
