@@ -131,6 +131,56 @@ OBJ1=SELECT(image=IMAGE,object=OBJ0,query='red bus, blue bus',category=None)
 IMAGE0=BGBLUR(image=IMAGE,object=OBJ1,background='False')
 FINAL_RESULT=RESULT(var=IMAGE0)
 
+
+# 첫번째 예시(인물바꾸기 - 할아버지할머니 사진)
+Instruction: Replace man with Leonardo DiCaprio.
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='male',category='person')
+IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt='Leonardo DiCaprio')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Make it look like a left person is taking a photo with Leonardo DiCaprio.
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='male',category='person')
+IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt='Leonardo DiCaprio')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+# 두번째 예시(계절 바꾸기 - 거리 사진)
+Instruction: Replace trees to look like fall.
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='tree',category=None)
+IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt='fall leaves')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Change season to fall.
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='tree',category=None)
+IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt='fall leaves')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+# 세번째 예시(배경 바꾸기 - 강아지 뛰는 사진)
+Instruction: Replace grass to sky.
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='grass',category=None)
+IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt=' sky')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+Instruction: Make dog flying in the sky.
+Program:
+OBJ0=SEG(image=IMAGE)
+OBJ1=SELECT(image=IMAGE,object=OBJ0,query='grass',category=None)
+IMAGE0=REPLACE(image=IMAGE,object=OBJ1,prompt=' sky')
+FINAL_RESULT=RESULT(var=IMAGE0)
+
+
+
 Instruction: {instruction}
 Program:
 """
+
+
